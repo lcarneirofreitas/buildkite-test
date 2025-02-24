@@ -16,7 +16,7 @@ steps:
       RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/$GITHUB_REPO/issues/$BUILDKITE_PULL_REQUEST/labels")
       status=$?
 
-      if [[ $status != 0 ]]; then
+      if [[ $status -ne 0 ]]; then
         echo "Erro na requisição da API do GitHub (código $status)."
         echo "$RESPONSE"  # Imprime a resposta para debug
         exit 1
@@ -26,7 +26,7 @@ steps:
         echo "Erro: Resposta da API do GitHub vazia."
         exit 1
       fi
-      
+
       echo "Resposta da API do GitHub (completa): $RESPONSE" | jq . # Imprime para debug
 
       LABELS=$(echo "$RESPONSE" | jq -r '.[].name // ""' | tr '\n' ' ')
@@ -34,14 +34,15 @@ steps:
 
       # Verifica se LABELS está vazio após a extração
       if [[ -z "$LABELS" ]]; then
-        echo "Erro: Não foi possível extrair labels do JSON."
+        echo "Erro: Não foi possível extrair labels do JSON. Resposta do jq:"
+        echo "$RESPONSE" | jq . # Imprime a resposta do jq para debug
         buildkite-agent annotate "Pipeline cancelado: Nenhuma label encontrada no PR." --style "error"
         exit 1
       fi
 
-      if echo "$LABELS" | grep -qw "dev"; then
+      if [[ "$LABELS" == *"dev"* ]]; then # Mudança aqui
         export BUILDKITE_TRIGGER_ENV="dev"
-      elif echo "$LABELS" | grep -qw "production"; then
+      elif [[ "$LABELS" == *"production"* ]]; then # Mudança aqui
         export BUILDKITE_TRIGGER_ENV="production"
       else
         echo "Nenhuma label válida encontrada. Cancelando build."
