@@ -17,10 +17,10 @@ steps:
 
       if echo "$LABELS" | grep -q "dev"; then
         echo "Iniciando deploy para DEV..."
-        echo "BUILDKITE_TRIGGER_ENV=dev" >> "$BUILDKITE_ENV_FILE"
+        echo "export BUILDKITE_TRIGGER_ENV=dev" >> "$BUILDKITE_ENV_FILE"
       elif echo "$LABELS" | grep -q "production"; then
         echo "Iniciando deploy para PRODUÇÃO..."
-        echo "BUILDKITE_TRIGGER_ENV=production" >> "$BUILDKITE_ENV_FILE"
+        echo "export BUILDKITE_TRIGGER_ENV=production" >> "$BUILDKITE_ENV_FILE"
       else
         echo "Nenhuma label válida encontrada. Cancelando build."
         buildkite-agent annotate "Pipeline cancelado: Nenhuma label válida encontrada." --style "error"
@@ -31,7 +31,7 @@ steps:
 
   - wait
 
-  # Step 2: Build e Testes (Somente se a Label foi identificada)
+  # Step 2: Build e Testes
   - label: "Build & Test"
     key: build-test
     command: |
@@ -44,46 +44,45 @@ steps:
 
   - wait
 
-# Step 3: Deploy em Dev
-- label: "Deploy em Dev"
-  key: deploy-dev
-  command: |
-    if [[ "$BUILDKITE_TRIGGER_ENV" == "dev" ]]; then
-      echo "Iniciando deploy em Dev..."
-      sleep 5
-      echo "Deploy em Dev finalizado!"
-    else
-      echo "Skipping deploy para Dev"
-      exit 0
-    fi
-  agents:
-    queue: "default"
+  # Step 3: Deploy em Dev (Executa apenas se for dev)
+  - label: "Deploy em Dev"
+    key: deploy-dev
+    command: |
+      if [[ "$BUILDKITE_TRIGGER_ENV" == "dev" ]]; then
+        echo "Iniciando deploy em Dev..."
+        sleep 5
+        echo "Deploy em Dev finalizado!"
+      else
+        echo "Skipping deploy para Dev"
+        exit 0
+      fi
+    agents:
+      queue: "default"
 
-# Step 4: Aprovação para Deploy em Produção
-- input: "Aprovar Deploy em Produção?"
-  key: approve-prod
-  depends_on:
-    - build-test
-  prompt: "Deseja implantar a versão em Produção?"
-  command: |
-    if [[ "$BUILDKITE_TRIGGER_ENV" != "production" ]]; then
-      echo "Skipping approval step for production"
-      exit 0
-    fi
+  - wait
 
-# Step 5: Deploy em Produção
-- label: "Deploy em Produção"
-  key: deploy-prod
-  depends_on:
-    - approve-prod
-  command: |
-    if [[ "$BUILDKITE_TRIGGER_ENV" == "production" ]]; then
-      echo "Iniciando deploy em Produção..."
-      sleep 5
-      echo "Deploy em Produção finalizado!"
-    else
-      echo "Skipping deploy para Produção"
-      exit 0
-    fi
-  agents:
-    queue: "default"
+  # Step 4: Aprovação para Deploy em Produção
+  - input: "Aprovar Deploy em Produção?"
+    key: approve-prod
+    depends_on:
+      - build-test
+    prompt: "Deseja implantar a versão em Produção?"
+
+  - wait
+
+  # Step 5: Deploy em Produção (Se aprovado)
+  - label: "Deploy em Produção"
+    key: deploy-prod
+    depends_on:
+      - approve-prod
+    command: |
+      if [[ "$BUILDKITE_TRIGGER_ENV" == "production" ]]; then
+        echo "Iniciando deploy em Produção..."
+        sleep 5
+        echo "Deploy em Produção finalizado!"
+      else
+        echo "Skipping deploy para Produção"
+        exit 0
+      fi
+    agents:
+      queue: "default"
