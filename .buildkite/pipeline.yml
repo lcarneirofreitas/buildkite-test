@@ -10,6 +10,7 @@ steps:
     key: check-label
     command: |
       # Recupera o token do Buildkite secrets
+      echo "GITHUB_TOKEN=$(buildkite-agent secret get GITHUB_TOKEN)"
       GITHUB_TOKEN=$(buildkite-agent secret get GITHUB_TOKEN)
       
       echo "Verificando labels do PR #${BUILDKITE_PULL_REQUEST:-0}..."
