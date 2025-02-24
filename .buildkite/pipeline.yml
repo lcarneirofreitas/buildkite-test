@@ -8,31 +8,40 @@ steps:
   # Step 1: Recupera o secret e verifica a Label no PR
   - label: "Verificando Label no PR"
     key: check-label
-    command: |
-      # Recupera o token do Buildkite secrets
-      GITHUB_TOKEN=$(buildkite-agent secret get GITHUB_TOKEN)
+      command: |
+        GITHUB_TOKEN=$(buildkite-agent secret get GITHUB_TOKEN)
+        echo "Verificando labels do PR #${BUILDKITE_PULL_REQUEST:-0}..."
 
-      echo "Verificando labels do PR #${BUILDKITE_PULL_REQUEST:-0}..."
-      RESPONSE=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
-        "https://api.github.com/repos/$GITHUB_REPO/issues/${BUILDKITE_PULL_REQUEST:-0}/labels")
+        curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/$GITHUB_REPO/issues/$BUILDKITE_PULL_REQUEST/labels" > /tmp/response.json
+        status=$?
 
-      echo "Resposta da API do GitHub: $RESPONSE"
+        if [[ $status != 0 ]]; then
+          echo "Erro na requisição da API do GitHub (código $status)."
+          cat /tmp/response.json
+          exit 1
+        fi
 
-      LABELS=$(echo "$RESPONSE" | jq -r '.[].name' | tr '\n' ' ')
-      echo "Labels encontradas: $LABELS"
+        RESPONSE=$(cat /tmp/response.json)
+        echo "Resposta da API do GitHub (completa): $RESPONSE" | jq .
 
-      if echo "$LABELS" | grep -qw "dev"; then
-        echo "Iniciando deploy para DEV..."
-        export BUILDKITE_TRIGGER_ENV="dev" # Exporta a variável!
-      elif echo "$LABELS" | grep -qw "production"; then
-        echo "Iniciando deploy para PRODUÇÃO..."
-        export BUILDKITE_TRIGGER_ENV="production" # Exporta a variável!
-      else
-        echo "Nenhuma label válida encontrada. Cancelando build."
-        buildkite-agent annotate "Pipeline cancelado: Nenhuma label válida encontrada." --style "error"
-        exit 1
-      fi
-    agents:
+        if [[ -z "$RESPONSE" ]]; then
+          echo "Erro: Resposta da API do GitHub vazia."
+          exit 1
+        fi
+
+        LABELS=$(echo "$RESPONSE" | jq -r '.[].name // ""' | tr '\n' ' ')
+        echo "Labels encontradas: $LABELS"
+
+        if echo "$LABELS" | grep -qw "dev"; then
+          export BUILDKITE_TRIGGER_ENV="dev"
+        elif echo "$LABELS" | grep -qw "production"; then
+          export BUILDKITE_TRIGGER_ENV="production"
+        else
+          echo "Nenhuma label válida encontrada. Cancelando build."
+          buildkite-agent annotate "Pipeline cancelado: Nenhuma label válida encontrada." --style "error"
+          exit 1
+        fi
+      agents:
       queue: "default"
 
   - wait
