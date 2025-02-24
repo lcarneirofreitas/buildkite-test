@@ -5,22 +5,24 @@ env:
 
 steps:
 
-  # Step 1: Verifica a Label no PR
+  # Step 1: Recupera o secret e verifica a Label no PR
   - label: "Verificando Label no PR"
     key: check-label
     command: |
+      # Recupera o token do Buildkite secrets
+      GITHUB_TOKEN=$(buildkite-agent secret get GITHUB_TOKEN)
+      
       echo "Verificando labels do PR #${BUILDKITE_PULL_REQUEST:-0}..."
-      LABELS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+      LABELS=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
                    "https://api.github.com/repos/$GITHUB_REPO/issues/${BUILDKITE_PULL_REQUEST:-0}/labels" | jq -r '.[].name')
-
       echo "Labels encontradas: $LABELS"
 
       if echo "$LABELS" | grep -q "dev"; then
         echo "Iniciando deploy para DEV..."
-        echo "export BUILDKITE_TRIGGER_ENV=dev" >> "$BUILDKITE_ENV_FILE"
+        echo "BUILDKITE_TRIGGER_ENV=dev" >> "$BUILDKITE_ENV_FILE"
       elif echo "$LABELS" | grep -q "production"; then
         echo "Iniciando deploy para PRODUÇÃO..."
-        echo "export BUILDKITE_TRIGGER_ENV=production" >> "$BUILDKITE_ENV_FILE"
+        echo "BUILDKITE_TRIGGER_ENV=production" >> "$BUILDKITE_ENV_FILE"
       else
         echo "Nenhuma label válida encontrada. Cancelando build."
         buildkite-agent annotate "Pipeline cancelado: Nenhuma label válida encontrada." --style "error"
