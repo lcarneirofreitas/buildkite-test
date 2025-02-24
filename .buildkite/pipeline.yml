@@ -10,18 +10,24 @@ steps:
     key: check-label
     command: |
       # Recupera o token do Buildkite secrets
-      echo "GITHUB_TOKEN=$(buildkite-agent secret get GITHUB_TOKEN)"
       GITHUB_TOKEN=$(buildkite-agent secret get GITHUB_TOKEN)
-      
+
+      # Define o arquivo de ambiente
+      BUILDKITE_ENV_FILE="/tmp/buildkite_env"
+
       echo "Verificando labels do PR #${BUILDKITE_PULL_REQUEST:-0}..."
-      LABELS=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
-                   "https://api.github.com/repos/$GITHUB_REPO/issues/${BUILDKITE_PULL_REQUEST:-0}/labels" | jq -r '.[].name')
+      RESPONSE=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+        "https://api.github.com/repos/$GITHUB_REPO/issues/${BUILDKITE_PULL_REQUEST:-0}/labels")
+
+      echo "Resposta da API do GitHub: $RESPONSE"
+      
+      LABELS=$(echo "$RESPONSE" | jq -r '.[].name' | tr '\n' ' ')
       echo "Labels encontradas: $LABELS"
 
-      if echo "$LABELS" | grep -q "dev"; then
+      if echo "$LABELS" | grep -qw "dev"; then
         echo "Iniciando deploy para DEV..."
         echo "BUILDKITE_TRIGGER_ENV=dev" >> "$BUILDKITE_ENV_FILE"
-      elif echo "$LABELS" | grep -q "production"; then
+      elif echo "$LABELS" | grep -qw "production"; then
         echo "Iniciando deploy para PRODUÇÃO..."
         echo "BUILDKITE_TRIGGER_ENV=production" >> "$BUILDKITE_ENV_FILE"
       else
@@ -53,7 +59,9 @@ steps:
     key: deploy-dev
     depends_on: build-test
     command: |
+      BUILDKITE_ENV_FILE="/tmp/buildkite_env"
       source "$BUILDKITE_ENV_FILE"
+
       if [[ "$BUILDKITE_TRIGGER_ENV" == "dev" ]]; then
         echo "Iniciando deploy em Dev..."
         sleep 5
@@ -82,7 +90,9 @@ steps:
     depends_on:
       - approve-prod
     command: |
+      BUILDKITE_ENV_FILE="/tmp/buildkite_env"
       source "$BUILDKITE_ENV_FILE"
+
       if [[ "$BUILDKITE_TRIGGER_ENV" == "production" ]]; then
         echo "Iniciando deploy em Produção..."
         sleep 5
