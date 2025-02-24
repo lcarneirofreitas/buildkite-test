@@ -1,12 +1,38 @@
 env:
   GITHUB_REPO: "meu-org/meu-repo"
-  GITHUB_TOKEN: "seu_token_github"  # Recomenda-se usar um Secret Manager
+  GITHUB_TOKEN: "seu_token_github"  # Use secrets para maior segurança
   DEV_ACCOUNT: "1234567890"
   PROD_ACCOUNT: "0987654321"
 
 steps:
 
-  # Step 1: Build e Testes
+  # Step 1: Verifica a Label no PR
+  - label: "Verificando Label no PR"
+    key: check-label
+    command: |
+      echo "Verificando labels do PR #${BUILDKITE_PULL_REQUEST}..."
+      LABELS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                   "https://api.github.com/repos/$GITHUB_REPO/issues/${BUILDKITE_PULL_REQUEST}/labels" | jq -r '.[].name')
+
+      echo "Labels encontradas: $LABELS"
+
+      if echo "$LABELS" | grep -q "dev"; then
+        echo "Iniciando deploy para DEV..."
+        echo "BUILDKITE_TRIGGER_ENV=dev" >> "$BUILDKITE_ENV_FILE"
+      elif echo "$LABELS" | grep -q "production"; then
+        echo "Iniciando deploy para PRODUÇÃO..."
+        echo "BUILDKITE_TRIGGER_ENV=production" >> "$BUILDKITE_ENV_FILE"
+      else
+        echo "Nenhuma label válida encontrada. Cancelando build."
+        buildkite-agent annotate "Pipeline cancelado: Nenhuma label válida encontrada." --style "error"
+        exit 1
+      fi
+    agents:
+      queue: "default"
+
+  - wait
+
+  # Step 2: Build e Testes (Somente se a Label foi identificada)
   - label: "Build & Test"
     key: build-test
     command: |
@@ -19,26 +45,32 @@ steps:
 
   - wait
 
-  # Step 2: Deploy em Dev (automático)
+  # Step 3: Deploy em Dev (Se label for 'dev')
   - label: "Deploy em Dev"
     key: deploy-dev
     command: |
-      echo "Iniciando deploy em Dev..."
-      sleep 5
-      echo "Deploy em Dev finalizado!"
+      if [[ "$BUILDKITE_TRIGGER_ENV" == "dev" ]]; then
+        echo "Iniciando deploy em Dev..."
+        sleep 5
+        echo "Deploy em Dev finalizado!"
+      else
+        echo "Skipping deploy para Dev"
+      fi
     agents:
       queue: "default"
+    if: build.env("BUILDKITE_TRIGGER_ENV") == "dev"
 
   - wait
 
-  # Step 3: Aprovação para Deploy em Produção
+  # Step 4: Aprovação para Deploy em Produção (Se label for 'production')
   - input: "Aprovar Deploy em Produção?"
     key: approve-prod
     depends_on:
-      - deploy-dev
+      - build-test
     prompt: "Deseja implantar a versão em Produção?"
-  
-  # Step 4: Deploy em Produção (só roda após aprovação)
+    if: build.env("BUILDKITE_TRIGGER_ENV") == "production"
+
+  # Step 5: Deploy em Produção (Somente se aprovado e se label for 'production')
   - label: "Deploy em Produção"
     key: deploy-prod
     depends_on:
@@ -49,4 +81,4 @@ steps:
       echo "Deploy em Produção finalizado!"
     agents:
       queue: "default"
-
+    if: build.env("BUILDKITE_TRIGGER_ENV") == "production"
