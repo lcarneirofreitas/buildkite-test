@@ -11,6 +11,7 @@ steps:
     command: |
       # Recupera o token do Buildkite secrets
       GITHUB_TOKEN=$(buildkite-agent secret get GITHUB_TOKEN)
+      echo $GITHUB_TOKEN | wc -c
 
       # Define o arquivo de ambiente
       BUILDKITE_ENV_FILE="/tmp/buildkite_env"
