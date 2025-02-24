@@ -17,10 +17,10 @@ steps:
 
       if echo "$LABELS" | grep -q "dev"; then
         echo "Iniciando deploy para DEV..."
-        echo "BUILDKITE_TRIGGER_ENV=dev" >> "$BUILDKITE_ENV_FILE"
+        echo "export BUILDKITE_TRIGGER_ENV=dev" >> "$BUILDKITE_ENV_FILE"
       elif echo "$LABELS" | grep -q "production"; then
         echo "Iniciando deploy para PRODUÇÃO..."
-        echo "BUILDKITE_TRIGGER_ENV=production" >> "$BUILDKITE_ENV_FILE"
+        echo "export BUILDKITE_TRIGGER_ENV=production" >> "$BUILDKITE_ENV_FILE"
       else
         echo "Nenhuma label válida encontrada. Cancelando build."
         buildkite-agent annotate "Pipeline cancelado: Nenhuma label válida encontrada." --style "error"
@@ -49,11 +49,16 @@ steps:
   - label: "Deploy em Dev"
     key: deploy-dev
     depends_on: build-test
-    if: build.env("BUILDKITE_TRIGGER_ENV") == "dev"
     command: |
-      echo "Iniciando deploy em Dev..."
-      sleep 5
-      echo "Deploy em Dev finalizado!"
+      source "$BUILDKITE_ENV_FILE"
+      if [[ "$BUILDKITE_TRIGGER_ENV" == "dev" ]]; then
+        echo "Iniciando deploy em Dev..."
+        sleep 5
+        echo "Deploy em Dev finalizado!"
+      else
+        echo "Skipping deploy para Dev"
+        exit 0
+      fi
     agents:
       queue: "default"
 
@@ -64,7 +69,6 @@ steps:
     key: approve-prod
     depends_on:
       - build-test
-    if: build.env("BUILDKITE_TRIGGER_ENV") == "production"
     prompt: "Deseja implantar a versão em Produção?"
 
   - wait
@@ -74,10 +78,15 @@ steps:
     key: deploy-prod
     depends_on:
       - approve-prod
-    if: build.env("BUILDKITE_TRIGGER_ENV") == "production"
     command: |
-      echo "Iniciando deploy em Produção..."
-      sleep 5
-      echo "Deploy em Produção finalizado!"
+      source "$BUILDKITE_ENV_FILE"
+      if [[ "$BUILDKITE_TRIGGER_ENV" == "production" ]]; then
+        echo "Iniciando deploy em Produção..."
+        sleep 5
+        echo "Deploy em Produção finalizado!"
+      else
+        echo "Skipping deploy para Produção"
+        exit 0
+      fi
     agents:
       queue: "default"
