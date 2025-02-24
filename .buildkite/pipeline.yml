@@ -1,6 +1,5 @@
 env:
-  GITHUB_REPO: "meu-org/meu-repo"
-  GITHUB_TOKEN: "seu_token_github"  # Use secrets para maior segurança
+  GITHUB_REPO: "lcarneirofreitas/buildkite-test"
   DEV_ACCOUNT: "1234567890"
   PROD_ACCOUNT: "0987654321"
 
