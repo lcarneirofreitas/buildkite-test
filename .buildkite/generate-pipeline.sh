@@ -79,7 +79,7 @@ echo "✅ Configuring $LABEL..."
 # Adds the dynamic step to the pipeline
 PIPELINE_STEPS=$(jq -n \
   --arg label "$LABEL" \
-  --arg command ".buildkite/deploy.sh $ENV" \
+  --arg command "bash .buildkite/deploy.sh $ENV" \
   '{ steps: [ { label: $label, command: $command } ] }')
 
 # Uploads the dynamic pipeline to Buildkite
