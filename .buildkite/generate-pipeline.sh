@@ -58,16 +58,16 @@ echo "📌 Labels found: $LABELS"
 # Initializes pipeline steps
 PIPELINE_STEPS="[]"
 
-# Defines the environment based on labels
-if echo "$LABELS" | grep -qw "dev"; then
+# Validate the label and set the environment
+if [[ "$LABEL" == "dev" ]]; then
   ENV="dev"
-  LABEL="Deploy to DEV"
-elif echo "$LABELS" | grep -qw "preprod"; then
+  LABEL="Deploy to dev"
+elif [[ "$LABEL" == "preprod" ]]; then
   ENV="preprod"
-  LABEL="Deploy to PREPROD"
-elif echo "$LABELS" | grep -qw "production"; then
+  LABEL="Deploy to preprod"
+elif [[ "$LABEL" == "production" ]]; then
   ENV="production"
-  LABEL="Deploy to PRODUCTION"
+  LABEL="Deploy to production"
 else
   echo "🚨 No valid label found. Canceling build."
   buildkite-agent annotate "Pipeline canceled: No valid label found." --style "error"
