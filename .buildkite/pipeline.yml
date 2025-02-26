@@ -1,113 +1,20 @@
-env:
-  GITHUB_REPO: "lcarneirofreitas/buildkite-test"
-  DEV_ACCOUNT: "1234567890"
-  PROD_ACCOUNT: "0987654321"
-
 steps:
+  - label: "Definir ambiente"
+    command: ".buildkite/set-environment.sh"
+    key: "set-env"
 
-  # Step 1: Recupera o secret e verifica a Label no PR
-  - label: "Verificando Label no PR"
-    key: check-label
-    command: |
-      GITHUB_TOKEN=$(buildkite-agent secret get GITHUB_TOKEN)
-      echo "Verificando labels do PR #${BUILDKITE_PULL_REQUEST:-0}..."
+  - label: "Deploy para DEV"
+    command: ".buildkite/deploy.sh dev"
+    depends_on: "set-env"
+    if: build.env("BUILDKITE_TRIGGER_ENV") == "dev"
 
-      # Melhor tratamento de erros e resposta vazia
-      RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/$GITHUB_REPO/issues/$BUILDKITE_PULL_REQUEST/labels")
-      status=$?
+  - label: "Deploy para PREPROD"
+    command: ".buildkite/deploy.sh preprod"
+    depends_on: "set-env"
+    if: build.env("BUILDKITE_TRIGGER_ENV") == "preprod"
 
-      if [[ $status -ne 0 ]]; then
-        echo "Erro na requisição da API do GitHub (código $status)."
-        echo "$RESPONSE"  # Imprime a resposta para debug
-        exit 1
-      fi
+  - label: "Deploy para PRODUCTION"
+    command: ".buildkite/deploy.sh production"
+    depends_on: "set-env"
+    if: build.env("BUILDKITE_TRIGGER_ENV") == "production"
 
-      if [[ -z "$RESPONSE" ]]; then
-        echo "Erro: Resposta da API do GitHub vazia."
-        exit 1
-      fi
-
-      echo "Resposta da API do GitHub (completa): $RESPONSE" | jq . # Imprime para debug
-
-      LABELS=$(echo "$RESPONSE" | jq -r '.[].name // ""' | tr '\n' ' ')
-      echo "Labels encontradas: $LABELS"
-
-      # Verifica se LABELS está vazio após a extração
-      if [[ -z "$LABELS" ]]; then
-        echo "Erro: Não foi possível extrair labels do JSON. Resposta do jq:"
-        echo "$RESPONSE" | jq . # Imprime a resposta do jq para debug
-        buildkite-agent annotate "Pipeline cancelado: Nenhuma label encontrada no PR." --style "error"
-        exit 1
-      fi
-
-      if [[ "$LABELS" == *"dev"* ]]; then # Mudança aqui
-        export BUILDKITE_TRIGGER_ENV="dev"
-      elif [[ "$LABELS" == *"production"* ]]; then # Mudança aqui
-        export BUILDKITE_TRIGGER_ENV="production"
-      else
-        echo "Nenhuma label válida encontrada. Cancelando build."
-        buildkite-agent annotate "Pipeline cancelado: Nenhuma label 'dev' ou 'production' encontrada no PR." --style "error"
-        exit 1
-      fi
-    agents:
-      queue: "default"
-
-  - wait
-
-  # Step 2: Build e Testes
-  - label: "Build & Test"
-    key: build-test
-    depends_on: check-label
-    command: |
-      echo "Rodando build..."
-      echo "Executando testes..."
-      sleep 5
-      echo "Build e testes finalizados com sucesso!"
-    agents:
-      queue: "default"
-
-  - wait
-
-  # Step 3: Deploy em Dev (Executa apenas se for dev)
-  - label: "Deploy em Dev"
-    key: deploy-dev
-    depends_on: build-test
-    command: |
-      if [[ "$BUILDKITE_TRIGGER_ENV" == "dev" ]]; then
-        echo "Iniciando deploy em Dev..."
-        sleep 5
-        echo "Deploy em Dev finalizado!"
-      else
-        echo "Skipping deploy para Dev"
-        exit 0
-      fi
-    agents:
-      queue: "default"
-
-  - wait
-
-  # Step 4: Aprovação para Deploy em Produção
-  - input: "Aprovar Deploy em Produção?"
-    key: approve-prod
-    depends_on:
-      - build-test
-    prompt: "Deseja implantar a versão em Produção?"
-
-  - wait
-
-  # Step 5: Deploy em Produção (Se aprovado)
-  - label: "Deploy em Produção"
-    key: deploy-prod
-    depends_on:
-      - approve-prod
-    command: |
-      if [[ "$BUILDKITE_TRIGGER_ENV" == "production" ]]; then
-        echo "Iniciando deploy em Produção..."
-        sleep 5
-        echo "Deploy em Produção finalizado!"
-      else
-        echo "Skipping deploy para Produção"
-        exit 0
-      fi
-    agents:
-      queue: "default"
