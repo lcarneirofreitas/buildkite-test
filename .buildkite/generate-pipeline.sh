@@ -58,14 +58,14 @@ echo "📌 Labels found: $LABELS"
 # Initializes pipeline steps
 PIPELINE_STEPS="[]"
 
-# Validate the label and set the environment
-if [[ "$LABEL" == "dev" ]]; then
+# Defines the environment based on labels
+if echo "$LABELS" | grep -qw "dev"; then
   ENV="dev"
   LABEL="Deploy to dev"
-elif [[ "$LABEL" == "preprod" ]]; then
+elif echo "$LABELS" | grep -qw "preprod"; then
   ENV="preprod"
   LABEL="Deploy to preprod"
-elif [[ "$LABEL" == "production" ]]; then
+elif echo "$LABELS" | grep -qw "production"; then
   ENV="production"
   LABEL="Deploy to production"
 else
