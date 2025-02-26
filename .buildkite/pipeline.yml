@@ -1,20 +1,4 @@
 steps:
-  - label: "Definir ambiente"
-    command: ".buildkite/set-environment.sh"
-    key: "set-env"
-
-  - label: "Deploy para DEV"
-    command: ".buildkite/deploy.sh dev"
-    depends_on: "set-env"
-    if: build.env("BUILDKITE_TRIGGER_ENV") == "dev"
-
-  - label: "Deploy para PREPROD"
-    command: ".buildkite/deploy.sh preprod"
-    depends_on: "set-env"
-    if: build.env("BUILDKITE_TRIGGER_ENV") == "preprod"
-
-  - label: "Deploy para PRODUCTION"
-    command: ".buildkite/deploy.sh production"
-    depends_on: "set-env"
-    if: build.env("BUILDKITE_TRIGGER_ENV") == "production"
+  - label: "Gerando pipeline dinâmico"
+    command: ".buildkite/generate-pipeline.sh"
 
