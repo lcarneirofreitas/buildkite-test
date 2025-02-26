@@ -36,7 +36,7 @@ echo "📌 PR number found: #$PR_NUMBER"
 RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
   "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/labels")
 
-#echo "🔍 Debug - API Response: $RESPONSE"
+echo "🔍 Debug - API Response: $RESPONSE"
 
 # Checks if the API response contains an error
 if echo "$RESPONSE" | jq -e '.message? | select(. == "Not Found")' > /dev/null; then
