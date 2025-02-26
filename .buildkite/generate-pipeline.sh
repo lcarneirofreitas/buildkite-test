@@ -1,21 +1,21 @@
-#!/bin/bash -x
+#!/bin/bash
 
 set -e
 
-echo "🔍 Verificando labels do PR..."
+echo "🔍 Checking PR labels..."
 
-# Obtém o token do GitHub a partir do Buildkite secrets
+# Retrieves the GitHub token from Buildkite secrets
 GITHUB_TOKEN=$(buildkite-agent secret get GITHUB_TOKEN)
 
-# Define o repositório corretamente
+# Defines the repository correctly
 REPO="lcarneirofreitas/buildkite-test"
 
-# Tenta obter o número do PR a partir da variável BUILDKITE_PULL_REQUEST
+# Attempts to get the PR number from the BUILDKITE_PULL_REQUEST variable
 PR_NUMBER="${BUILDKITE_PULL_REQUEST}"
 
-# Se não estiver definido, tenta recuperar via API do GitHub
+# If not set, try to retrieve it via GitHub API
 if [[ -z "$PR_NUMBER" || "$PR_NUMBER" == "false" ]]; then
-  echo "⚠️  Número do PR não encontrado em BUILDKITE_PULL_REQUEST. Tentando recuperar via API..."
+  echo "⚠️  PR number not found in BUILDKITE_PULL_REQUEST. Attempting to retrieve via API..."
 
   BRANCH="$BUILDKITE_BRANCH"
 
@@ -24,63 +24,63 @@ if [[ -z "$PR_NUMBER" || "$PR_NUMBER" == "false" ]]; then
     '.[] | select(.head.ref == $branch) | .number')
 
   if [[ -z "$PR_NUMBER" || "$PR_NUMBER" == "null" ]]; then
-    echo "🚨 Nenhum PR encontrado para a branch $BRANCH. Cancelando build."
-    buildkite-agent annotate "Pipeline cancelado: Nenhum PR encontrado." --style "error"
+    echo "🚨 No PR found for branch $BRANCH. Canceling build."
+    buildkite-agent annotate "Pipeline canceled: No PR found." --style "error"
     exit 1
   fi
 fi
 
-echo "📌 Número do PR encontrado: #$PR_NUMBER"
+echo "📌 PR number found: #$PR_NUMBER"
 
-# Obtém as labels do PR via API do GitHub
+# Retrieves PR labels via GitHub API
 RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
   "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/labels")
 
-echo "🔍 Debug - Resposta da API: $RESPONSE"
+echo "🔍 Debug - API Response: $RESPONSE"
 
-# Verifica se a resposta da API contém erro
+# Checks if the API response contains an error
 if echo "$RESPONSE" | jq -e '.message? | select(. == "Not Found")' > /dev/null; then
-  echo "🚨 Erro: PR não encontrado no repositório $REPO!"
+  echo "🚨 Error: PR not found in repository $REPO!"
   exit 1
 fi
 
-# Extrai os nomes das labels
+# Extracts label names
 LABELS=$(echo "$RESPONSE" | jq -r '.[].name' | tr '\n' ' ')
 
 if [[ -z "$LABELS" ]]; then
-  echo "🚨 Nenhuma label encontrada. Cancelando build."
-  buildkite-agent annotate "Pipeline cancelado: Nenhuma label encontrada no PR." --style "error"
+  echo "🚨 No labels found. Canceling build."
+  buildkite-agent annotate "Pipeline canceled: No labels found on PR." --style "error"
   exit 1
 fi
 
-echo "📌 Labels encontradas: $LABELS"
+echo "📌 Labels found: $LABELS"
 
-# Inicializa os steps do pipeline
+# Initializes pipeline steps
 PIPELINE_STEPS="[]"
 
-# Define o ambiente com base nas labels
+# Defines the environment based on labels
 if echo "$LABELS" | grep -qw "dev"; then
   ENV="dev"
-  LABEL="Deploy para DEV"
+  LABEL="Deploy to DEV"
 elif echo "$LABELS" | grep -qw "preprod"; then
   ENV="preprod"
-  LABEL="Deploy para PREPROD"
+  LABEL="Deploy to PREPROD"
 elif echo "$LABELS" | grep -qw "production"; then
   ENV="production"
-  LABEL="Deploy para PRODUCTION"
+  LABEL="Deploy to PRODUCTION"
 else
-  echo "🚨 Nenhuma label válida encontrada. Cancelando build."
-  buildkite-agent annotate "Pipeline cancelado: Nenhuma label válida encontrada." --style "error"
+  echo "🚨 No valid label found. Canceling build."
+  buildkite-agent annotate "Pipeline canceled: No valid label found." --style "error"
   exit 1
 fi
 
-echo "✅ Configurando $LABEL..."
+echo "✅ Configuring $LABEL..."
 
-# Adiciona o step dinâmico no pipeline
+# Adds the dynamic step to the pipeline
 PIPELINE_STEPS=$(jq -n \
   --arg label "$LABEL" \
   --arg command ".buildkite/deploy.sh $ENV" \
   '{ steps: [ { label: $label, command: $command } ] }')
 
-# Faz o upload do pipeline dinâmico para o Buildkite
+# Uploads the dynamic pipeline to Buildkite
 echo "$PIPELINE_STEPS" | buildkite-agent pipeline upload

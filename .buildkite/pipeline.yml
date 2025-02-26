@@ -1,4 +1,4 @@
 steps:
-  - label: "Gerando pipeline dinâmico"
+  - label: "Generate dynamic pipeline"
     command: ".buildkite/generate-pipeline.sh"
 
