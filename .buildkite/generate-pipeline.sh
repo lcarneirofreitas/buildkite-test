@@ -1,11 +1,12 @@
 #!/bin/bash -x
 
-#set -e
-
 echo "🔍 Verificando labels do PR..."
 
 # Obtém o token do GitHub a partir do Buildkite secrets
 GITHUB_TOKEN=$(buildkite-agent secret get GITHUB_TOKEN)
+
+# Define o repositório corretamente
+REPO="lcarneirofreitas/buildkite-test"
 
 # Tenta obter o número do PR a partir da variável BUILDKITE_PULL_REQUEST
 PR_NUMBER="${BUILDKITE_PULL_REQUEST}"
@@ -14,7 +15,6 @@ PR_NUMBER="${BUILDKITE_PULL_REQUEST}"
 if [[ -z "$PR_NUMBER" || "$PR_NUMBER" == "false" ]]; then
   echo "⚠️  Número do PR não encontrado em BUILDKITE_PULL_REQUEST. Tentando recuperar via API..."
 
-  REPO="lcarneirofreitas/buildkite-test"
   BRANCH="$BUILDKITE_BRANCH"
 
   PR_NUMBER=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
@@ -32,19 +32,24 @@ echo "📌 Número do PR encontrado: #$PR_NUMBER"
 
 # Obtém as labels do PR via API do GitHub
 RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-  "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER")
+  "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/labels")
 
-echo "$RESPONSE"
+echo "🔍 Debug - Resposta da API: $RESPONSE"
 
-# Verifica se a resposta da API contém um array válido
-if ! echo "$RESPONSE" | jq -e 'if type=="array" then . else empty end' > /dev/null; then
-  echo "🚨 Erro ao recuperar labels do PR! Resposta inesperada da API:"
-  echo "$RESPONSE"
+# Verifica se a resposta da API contém erro
+if echo "$RESPONSE" | jq -e '.message? | select(. == "Not Found")' > /dev/null; then
+  echo "🚨 Erro: PR não encontrado no repositório $REPO!"
   exit 1
 fi
 
 # Extrai os nomes das labels
 LABELS=$(echo "$RESPONSE" | jq -r '.[].name' | tr '\n' ' ')
+
+if [[ -z "$LABELS" ]]; then
+  echo "🚨 Nenhuma label encontrada. Cancelando build."
+  buildkite-agent annotate "Pipeline cancelado: Nenhuma label encontrada no PR." --style "error"
+  exit 1
+fi
 
 echo "📌 Labels encontradas: $LABELS"
 
@@ -63,7 +68,6 @@ elif echo "$LABELS" | grep -qw "production"; then
   LABEL="Deploy para PRODUCTION"
 else
   echo "🚨 Nenhuma label válida encontrada. Cancelando build."
-  echo "🔍 Debug - Resposta da API: $RESPONSE"
   buildkite-agent annotate "Pipeline cancelado: Nenhuma label válida encontrada." --style "error"
   exit 1
 fi
