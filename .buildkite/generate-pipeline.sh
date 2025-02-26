@@ -28,6 +28,7 @@ if [[ -z "$PR_NUMBER" || "$PR_NUMBER" == "false" ]]; then
   fi
 fi
 
+
 echo "📌 Número do PR encontrado: #$PR_NUMBER"
 
 # Obtém as labels do PR via API do GitHub
