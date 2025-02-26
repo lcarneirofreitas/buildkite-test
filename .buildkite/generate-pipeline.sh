@@ -1,4 +1,4 @@
-#!/bin/bashi -x
+#!/bin/bash -x
 
 set -e
 
