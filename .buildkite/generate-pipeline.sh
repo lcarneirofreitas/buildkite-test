@@ -32,7 +32,9 @@ echo "📌 Número do PR encontrado: #$PR_NUMBER"
 
 # Obtém as labels do PR via API do GitHub
 RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-  "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/labels")
+  "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER")
+
+echo "$RESPONSE"
 
 # Verifica se a resposta da API contém um array válido
 if ! echo "$RESPONSE" | jq -e 'if type=="array" then . else empty end' > /dev/null; then
