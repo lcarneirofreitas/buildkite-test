@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/bin/bash -x
 
-set -e
+#set -e
 
 echo "🔍 Verificando labels do PR..."
 
